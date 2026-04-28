@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TecControl — Gestão de Técnicos</title>
+
+  <!-- =====================================================
+       FONTE DO GOOGLE: Syne (títulos) + DM Sans (corpo)
+       Carregada via internet — precisa de conexão
+  ====================================================== -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- =====================================================
+       BIBLIOTECA XLSX: lê arquivos Excel (.xlsx)
+       Usada na tela de importação em massa
+  ====================================================== -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <!-- =====================================================
+       FIREBASE SDK (versão modular via CDN)
+       Inclui: App, Firestore (banco), Auth (login)
+       IMPORTANTE: substitua a config em app.js
+  ====================================================== -->
+  <script type="module" src="app.js"></script>
+
+  <!-- Arquivo CSS com todo o visual -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ============================================================
+       TELA DE LOGIN
+       Aparece quando o usuário não está autenticado.
+       Controlada pelo Firebase Authentication.
+  ============================================================ -->
+  <div id="tela-login">
+    <div class="login-box">
+      <div class="login-logo">
+        <span class="logo-icon">⚡</span>
+        <h1>TecControl</h1>
+        <p>Sistema de Gestão de Técnicos</p>
+      </div>
+
+      <!-- Mensagem de erro de login (ex: senha errada) -->
+      <div id="login-erro" class="msg-erro" style="display:none"></div>
+
+      <div class="form-group">
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email" placeholder="seu@email.com" />
+      </div>
+      <div class="form-group">
+        <label for="login-senha">Senha</label>
+        <input type="password" id="login-senha" placeholder="••••••••" />
+      </div>
+
+      <button class="btn btn-primary btn-full" id="btn-entrar">Entrar no Sistema</button>
+
+      <p class="login-dica">
+        Primeiro acesso? Crie sua conta:
+        <button class="link-btn" id="btn-criar-conta">Criar conta</button>
+      </p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SISTEMA PRINCIPAL
+       Só aparece após o login bem-sucedido.
+       display:none → o JS mostra quando autenticado
+  ============================================================ -->
+  <div id="app" style="display:none">
+
+    <!-- BARRA LATERAL (navegação) -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-logo">
+        <span class="logo-icon">⚡</span>
+        <div>
+          <h2>TecControl</h2>
+          <span id="usuario-email-label"></span>
+        </div>
+      </div>
+
+      <!-- MENU DE NAVEGAÇÃO -->
+      <nav class="nav-menu">
+        <!-- data-pagina="X" → qual página abrir ao clicar -->
+        <button class="nav-item ativo" data-pagina="dashboard">
+          <span class="nav-icon">📊</span>
+          <span>Dashboard</span>
+        </button>
+        <button class="nav-item" data-pagina="tecnicos">
+          <span class="nav-icon">👷</span>
+          <span>Técnicos</span>
+        </button>
+        <button class="nav-item" data-pagina="controle">
+          <span class="nav-icon">📋</span>
+          <span>Controle de Cursos</span>
+        </button>
+        <button class="nav-item" data-pagina="presenca">
+          <span class="nav-icon">✅</span>
+          <span>Presença do Dia</span>
+        </button>
+        <button class="nav-item" data-pagina="importar">
+          <span class="nav-icon">📥</span>
+          <span>Importar em Massa</span>
+        </button>
+        <button class="nav-item" data-pagina="relatorios">
+          <span class="nav-icon">📧</span>
+          <span>Relatórios</span>
+        </button>
+        <button class="nav-item" data-pagina="config">
+          <span class="nav-icon">⚙️</span>
+          <span>Configurações</span>
+        </button>
+      </nav>
+
+      <!-- Botão de sair -->
+      <button class="btn-sair" id="btn-sair">🚪 Sair</button>
+    </aside>
+
+    <!-- CONTEÚDO PRINCIPAL -->
+    <main class="conteudo">
+
+      <!-- ======================================================
+           PÁGINA 1: DASHBOARD
+           Mostra resumo geral e alertas
+      ====================================================== -->
+      <section id="pagina-dashboard" class="pagina ativa">
+        <div class="cabecalho-pagina">
+          <h2>Dashboard</h2>
+          <p id="data-hoje-label"></p>
+        </div>
+
+        <!-- Cartões de estatísticas -->
+        <div class="grid-stats">
+          <div class="stat-card azul">
+            <div class="stat-label">Total de Técnicos</div>
+            <div class="stat-valor" id="stat-total">0</div>
+          </div>
+          <div class="stat-card verde">
+            <div class="stat-label">Cursos Em Dia</div>
+            <div class="stat-valor" id="stat-ok">0</div>
+          </div>
+          <div class="stat-card amarelo">
+            <div class="stat-label">Vencendo em 30 dias</div>
+            <div class="stat-valor" id="stat-aviso">0</div>
+          </div>
+          <div class="stat-card vermelho">
+            <div class="stat-label">Cursos Vencidos</div>
+            <div class="stat-valor" id="stat-vencido">0</div>
+          </div>
+        </div>
+
+        <!-- Tabela de alertas -->
+        <div class="card">
+          <h3 class="card-titulo">🚨 Alertas de Vencimento</h3>
+          <div id="alertas-lista"></div>
+        </div>
+
+        <!-- Presenças de hoje -->
+        <div class="card">
+          <h3 class="card-titulo">📅 Presenças de Hoje</h3>
+          <div id="presencas-hoje"></div>
+        </div>
+      </section>
+
+      <!-- ======================================================
+           PÁGINA 2: TÉCNICOS
+           Cadastrar e gerenciar técnicos
+      ====================================================== -->
+      <section id="pagina-tecnicos" class="pagina">
+        <div class="cabecalho-pagina">
+          <h2>Técnicos</h2>
+          <p>Cadastre e gerencie os técnicos</p>
+        </div>
+
+        <!-- Formulário de cadastro -->
+        <div class="card">
+          <h3 class="card-titulo">➕ Cadastrar Novo Técnico</h3>
+          <div class="form-linha">
+            <div class="form-group">
+              <label>Nome Completo *</label>
+              <input type="text" id="tec-nome" placeholder="Ex: João da Silva" />
+            </div>
+            <div class="form-group">
+              <label>Matrícula *</label>
+              <input type="text" id="tec-matricula" placeholder="Ex: 12345" />
+            </div>
+          </div>
+          <div class="form-linha">
+            <div class="form-group">
+              <label>Função</label>
+              <input type="text" id="tec-funcao" placeholder="Ex: Eletricista" />
+            </div>
+            <div class="form-group">
+              <label>Email (opcional)</label>
+              <input type="email" id="tec-email" placeholder="email@empresa.com" />
+            </div>
+          </div>
+          <button class="btn btn-primary" id="btn-cadastrar-tec">➕ Cadastrar Técnico</button>
+        </div>
+
+        <!-- Lista de técnicos -->
+        <div class="card">
+          <h3 class="card-titulo">👷 Lista de Técnicos</h3>
+          <div class="barra-busca">
+            <input type="text" id="busca-tecnicos" placeholder="🔍 Buscar por nome ou matrícula..." />
+          </div>
+          <div class="tabela-wrap">
+            <table id="tabela-tecnicos">
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>Matrícula</th>
+                  <th>Função</th>
+                  <th>Qtd. Cursos</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="corpo-tabela-tecnicos">
+                <!-- Preenchido dinamicamente pelo JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================
+           PÁGINA 3: CONTROLE DE CURSOS
+           Tabela com todos cursos e status de reciclagem
+      ====================================================== -->
+      <section id="pagina-controle" class="pagina">
+        <div class="cabecalho-pagina">
+          <h2>Controle de Cursos</h2>
+          <p>Visualize e atualize reciclagens</p>
+        </div>
+        <div class="card">
+          <!-- Filtros de busca -->
+          <div class="barra-busca">
+            <input type="text" id="busca-controle" placeholder="🔍 Buscar técnico ou curso..." />
+            <select id="filtro-status">
+              <option value="">Todos os Status</option>
+              <option value="Em Dia">Em Dia</option>
+              <option value="Próximo">Vencendo em Breve</option>
+              <option value="Vencido">Vencido</option>
+            </select>
+            <select id="filtro-curso">
+              <option value="">Todos os Cursos</option>
+              <option>NR06</option>
+              <option>NR10</option>
+              <option>NR12</option>
+              <option>NR18</option>
+              <option>NR20</option>
+              <option>NR23</option>
+              <option>NR33</option>
+              <option>NR35</option>
+              <option>Outro</option>
+            </select>
+          </div>
+          <div class="tabela-wrap">
+            <table id="tabela-controle">
+              <thead>
+                <tr>
+                  <th>Técnico</th>
+                  <th>Matrícula</th>
+                  <th>Curso</th>
+                  <th>Última Reciclagem</th>
+                  <th>Vencimento</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="corpo-tabela-controle">
+                <!-- Preenchido pelo JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================
+           PÁGINA 4: PRESENÇA DO DIA
+           Marcar quem veio e quais cursos fizeram
+      ====================================================== -->
+      <section id="pagina-presenca" class="pagina">
+        <div class="cabecalho-pagina">
+          <h2>Registro de Presença</h2>
+          <p>Marque os técnicos presentes e os cursos realizados hoje</p>
+        </div>
+        <div class="card">
+          <div class="presenca-controles">
+            <div class="form-group" style="flex:0 0 auto">
+              <label>Data do Registro</label>
+              <input type="date" id="data-presenca" />
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-end">
+              <button class="btn btn-ghost" id="btn-sel-todos">Selecionar Todos</button>
+              <button class="btn btn-ghost" id="btn-limpar-sel">Limpar Seleção</button>
+              <button class="btn btn-sucesso" id="btn-salvar-presenca">💾 Salvar Presenças</button>
+            </div>
+          </div>
+          <input type="text" id="busca-presenca" placeholder="🔍 Buscar técnico..." class="busca-full" />
+          <!-- Lista de técnicos com checkbox e cursos -->
+          <div id="lista-presenca"></div>
+        </div>
+      </section>
+
+      <!-- ======================================================
+           PÁGINA 5: IMPORTAR EM MASSA
+           Upload de Excel ou colagem de dados
+      ====================================================== -->
+      <section id="pagina-importar" class="pagina">
+        <div class="cabecalho-pagina">
+          <h2>Importar em Massa</h2>
+          <p>Importe dados de planilha Excel ou colando texto</p>
+        </div>
+
+        <!-- Upload de arquivo Excel -->
+        <div class="card">
+          <h3 class="card-titulo">📂 Upload de Planilha Excel</h3>
+          <p class="dica-texto">
+            A planilha deve ter as colunas nesta ordem:<br/>
+            <code>Nome | Matrícula | Função | Curso | Data Reciclagem (AAAA-MM-DD)</code>
+          </p>
+          <!-- Área clicável de upload -->
+          <div class="area-upload" id="area-upload" onclick="document.getElementById('arquivo-excel').click()">
+            <input type="file" id="arquivo-excel" accept=".xlsx,.xls,.csv" style="display:none" />
+            <span class="upload-icone">📄</span>
+            <h4>Clique para selecionar o arquivo</h4>
+            <p>Suporta .xlsx, .xls e .csv</p>
+          </div>
+          <div id="preview-importacao"></div>
+        </div>
+
+        <!-- Colar dados manualmente -->
+        <div class="card">
+          <h3 class="card-titulo">📝 Colar Dados Manualmente</h3>
+          <p class="dica-texto">
+            Cole uma linha por técnico no formato:<br/>
+            <code>Nome;Matrícula;Função;Curso;DataReciclagem</code>
+          </p>
+          <textarea
+            id="dados-colados"
+            placeholder="João Silva;12345;Eletricista;NR10;2023-06-15&#10;Maria Santos;67890;Técnica;NR35;2023-09-20"
+          ></textarea>
+          <button class="btn btn-primary" id="btn-processar-colagem">⚡ Processar Dados</button>
+        </div>
+      </section>
+
+      <!-- ======================================================
+           PÁGINA 6: RELATÓRIOS
+           Gerar e copiar relatório do dia
+      ====================================================== -->
+      <section id="pagina-relatorios" class="pagina">
+        <div class="cabecalho-pagina">
+          <h2>Relatórios</h2>
+          <p>Gere e envie relatórios por email</p>
+        </div>
+
+        <div class="card">
+          <h3 class="card-titulo">📋 Relatório do Dia</h3>
+          <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px">
+            <div class="form-group" style="margin:0">
+              <label>Selecione a Data</label>
+              <input type="date" id="data-relatorio" />
+            </div>
+            <button class="btn btn-primary" id="btn-gerar-relatorio">📋 Gerar Relatório</button>
+            <button class="btn btn-ghost" id="btn-copiar-relatorio">📋 Copiar Texto</button>
+            <button class="btn btn-ghost" id="btn-exportar-txt">⬇️ Baixar .txt</button>
+          </div>
+          <!-- Onde o relatório aparece -->
+          <pre id="saida-relatorio" class="relatorio-pre">
+Selecione uma data e clique em "Gerar Relatório"</pre>
+        </div>
+
+        <!-- Botão de envio de email -->
+        <div class="card">
+          <h3 class="card-titulo">📧 Enviar Relatório por Email</h3>
+          <p class="dica-texto">
+            O sistema irá abrir seu cliente de email (Gmail, Outlook, etc.)
+            com o relatório já preenchido, pronto para enviar ao supervisor e gestor.
+          </p>
+          <button class="btn btn-primary" id="btn-enviar-email">✉️ Abrir Email com Relatório</button>
+          <p class="dica-texto" style="margin-top:12px">
+            Configure os emails nas <strong>Configurações</strong>.
+          </p>
+        </div>
+      </section>
+
+      <!-- ======================================================
+           PÁGINA 7: CONFIGURAÇÕES
+           Emails e opções do sistema
+      ====================================================== -->
+      <section id="pagina-config" class="pagina">
+        <div class="cabecalho-pagina">
+          <h2>Configurações</h2>
+          <p>Configure emails e preferências do sistema</p>
+        </div>
+
+        <div class="card">
+          <h3 class="card-titulo">📧 Destinatários de Relatório</h3>
+          <div class="form-linha">
+            <div class="form-group">
+              <label>Email do Supervisor</label>
+              <input type="email" id="cfg-supervisor" placeholder="supervisor@empresa.com" />
+            </div>
+            <div class="form-group">
+              <label>Email do Gestor</label>
+              <input type="email" id="cfg-gestor" placeholder="gestor@empresa.com" />
+            </div>
+          </div>
+          <button class="btn btn-primary" id="btn-salvar-config">💾 Salvar Configurações</button>
+        </div>
+
+        <!-- Backup dos dados -->
+        <div class="card">
+          <h3 class="card-titulo">💾 Backup dos Dados</h3>
+          <p class="dica-texto">
+            Exporte todos os dados como arquivo JSON para fazer backup
+            ou transferir para outro sistema.
+          </p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-ghost" id="btn-exportar-backup">⬇️ Exportar Backup JSON</button>
+            <button class="btn btn-ghost" onclick="document.getElementById('arquivo-backup').click()">⬆️ Importar Backup</button>
+            <input type="file" id="arquivo-backup" accept=".json" style="display:none" />
+            <button class="btn btn-perigo" id="btn-limpar-dados">🗑️ Limpar Todos os Dados</button>
+          </div>
+        </div>
+      </section>
+
+    </main><!-- /conteudo -->
+  </div><!-- /app -->
+
+  <!-- ============================================================
+       MODAL: Adicionar/Atualizar Curso
+       Aparece quando clica em "Adicionar Curso" ou "Atualizar"
+  ============================================================ -->
+  <div id="modal-curso" class="modal-overlay" style="display:none">
+    <div class="modal-caixa">
+      <h3>📚 Gerenciar Curso</h3>
+
+      <!-- Campos ocultos que guardam IDs -->
+      <input type="hidden" id="modal-tec-id" />
+      <input type="hidden" id="modal-curso-id" />
+
+      <div class="form-group">
+        <label>Nome do Curso *</label>
+        <select id="modal-curso-nome">
+          <option value="">Selecione...</option>
+          <option>NR06</option><option>NR10</option><option>NR12</option>
+          <option>NR18</option><option>NR20</option><option>NR23</option>
+          <option>NR33</option><option>NR35</option><option>Outro</option>
+        </select>
+      </div>
+      <div class="form-group" id="grupo-curso-personalizado" style="display:none">
+        <label>Nome Personalizado</label>
+        <input type="text" id="modal-curso-personalizado" placeholder="Ex: Trabalho em Altura" />
+      </div>
+      <div class="form-group">
+        <label>Data da Última Reciclagem *</label>
+        <input type="date" id="modal-data-reciclagem" />
+      </div>
+
+      <div class="modal-rodape">
+        <button class="btn btn-ghost" id="btn-fechar-modal">Cancelar</button>
+        <button class="btn btn-primary" id="btn-salvar-curso">Salvar Curso</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       TOAST (notificação flutuante)
+       Aparece no canto inferior direito com mensagens
+  ============================================================ -->
+  <div id="toast" class="toast" style="display:none"></div>
+   <script type="module" src="app.js"></script>
+</body>
+</html>
