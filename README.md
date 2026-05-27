@@ -1,4 +1,4 @@
-# Controle-Reciclagem# ♻️ Controle de Reciclagem
+♻️ Controle de Reciclagem
 
 Uma aplicação web desenvolvida para gerenciar e monitorar processos de reciclagem de forma eficiente e intuitiva. O sistema permite o controle de materiais, registros de coletas e acompanhamento de metas ambientais.
 
